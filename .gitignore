@@ -1,0 +1,9 @@
+build/
+dist/
+node_modules/
+**/*.log
+**/角色位置.json
+**/auth.json
+**/config.toml
+**/data/
+**/*.pdb

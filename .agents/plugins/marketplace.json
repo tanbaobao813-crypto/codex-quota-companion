@@ -1,0 +1,20 @@
+{
+  "name": "codex-quota-companion",
+  "interface": {
+    "displayName": "Codex Quota Companion"
+  },
+  "plugins": [
+    {
+      "name": "codex-quota-companion",
+      "source": {
+        "source": "local",
+        "path": "./plugins/codex-quota-companion"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

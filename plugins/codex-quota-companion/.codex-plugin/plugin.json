@@ -1,0 +1,31 @@
+{
+  "name": "codex-quota-companion",
+  "version": "0.1.0",
+  "description": "Windows Codex quota companion with a draggable portrait and speech bubble.",
+  "author": {
+    "name": "tanbaobao813-crypto",
+    "url": "https://github.com/tanbaobao813-crypto"
+  },
+  "homepage": "https://github.com/tanbaobao813-crypto/codex-quota-companion",
+  "repository": "https://github.com/tanbaobao813-crypto/codex-quota-companion",
+  "license": "MIT",
+  "mcpServers": "./.mcp.json",
+  "hooks": "./hooks/hooks.json",
+  "interface": {
+    "displayName": "Codex 额度伙伴",
+    "shortDescription": "可拖动头像与贴脸额度气泡，显示五小时和本周剩余用量。",
+    "longDescription": "Windows 原生桌面组件，随客户端缩放、移动与退出；使用现有登录读取额度。",
+    "developerName": "tanbaobao813-crypto",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Interactive"
+    ],
+    "defaultPrompt": [
+      "显示额度伙伴",
+      "查看剩余额度伙伴状态"
+    ],
+    "composerIcon": "./assets/character.png",
+    "logo": "./assets/character.png"
+  }
+}
