@@ -21,13 +21,28 @@
 
 ## 最简单的使用方法
 
-1. 在 [Releases](https://github.com/tanbaobao813-crypto/codex-quota-companion/releases) 下载 `codex-quota-companion-v0.1.0-windows.zip`。
+1. 在 [Releases](https://github.com/tanbaobao813-crypto/codex-quota-companion/releases) 下载 `codex-quota-companion-v0.1.1-windows.zip`。
 2. 完整解压到自己的文件夹。
 3. 双击 **启动客户端和额度伙伴.cmd**，一起打开客户端与额度伙伴。可以给这个文件创建桌面快捷方式。
 
 如果客户端已经打开，也可以直接运行 `plugins/codex-quota-companion/bin/CodexQuotaWidget.exe`。未找到客户端时，组件只等待启动窗口一小段时间，不会永久驻留。
 
 停止组件可双击 **关闭额度伙伴.cmd**；客户端本身继续运行。
+
+### 从 v0.1.0 更新
+
+先运行旧文件夹的“关闭额度伙伴.cmd”，再完整解压 v0.1.1，使用新文件夹的“启动客户端和额度伙伴.cmd”。若桌面快捷方式指向旧文件夹，请改为指向新入口，或在关闭组件后将新包文件覆盖到原文件夹。默认用户数据目录中的人物位置会保留。
+
+插件用户可先关闭组件，再移除并重新添加该 marketplace 和插件以获取新版本；随后重新开始会话并检查插件钩子信任状态。
+
+```powershell
+codex plugin remove codex-quota-companion@codex-quota-companion
+codex plugin marketplace remove codex-quota-companion
+codex plugin marketplace add tanbaobao813-crypto/codex-quota-companion
+codex plugin add codex-quota-companion@codex-quota-companion
+```
+
+v0.1.1 修复了窗口绑定失败导致组件退出、快速关闭重开时启动被跳过等问题。失败只进行有限次数重试；成功或达到上限后停止。详细记录见 [CHANGELOG](CHANGELOG.md)。
 
 **环境：** Windows 10 1607 或更新版本、已安装并登录的 Codex 桌面客户端、.NET Framework 4.x。Windows 11 通常已经具备运行环境。独立 EXE 不需要 Node.js。当前主要验证环境为 Windows 11；可执行文件尚未代码签名。
 
@@ -65,7 +80,7 @@ codex plugin list --json
 - 不上传账号、聊天或额度数据到本项目服务器；不复制登录凭据到插件目录。请求会访问 OpenAI 服务并使用现有 Codex 登录。
 - 仅气泡打开时安装鼠标点击监听，用来实现点击外部关闭。事件原样传递，不监听键盘，不保存鼠标坐标；拖动时暂停，收起时释放。
 - 不添加 Windows 服务、计划任务或开机启动项。
-- 人物位置与简短错误诊断默认保存在 `%LOCALAPPDATA%\CodexQuotaCompanion`；插件启动时优先使用宿主提供的 `PLUGIN_DATA`／`CLAUDE_PLUGIN_DATA`。卸载插件不会删除这些个人设置。
+- 人物位置与简短错误诊断默认保存在 `%LOCALAPPDATA%\CodexQuotaCompanion`；插件启动时优先使用宿主提供的 `PLUGIN_DATA`／`CLAUDE_PLUGIN_DATA`。卸载插件不会删除这些个人设置。启动诊断只记录时间和状态码，文件约达到 64KB 后重置，不包含窗口标题、聊天内容或凭据。
 
 客户端版本变化可能影响窗口识别、启动入口和额度接口。组件包含检测到更新重启意图后的重新挂接机制，但本发布包**尚未验证一次真实客户端自动更新全过程**。
 
@@ -75,12 +90,13 @@ codex plugin list --json
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1
 node --test tests/mcp.test.mjs
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check-native.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check-startup.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package.ps1
 ```
 
 构建使用 Windows 自带的 .NET Framework 编译器，无 NuGet／npm 依赖下载。原生检查使用独立的示例窗口和模拟额度，不查询账号；检查期间请避免点击该窗口外部，否则“点击外部收起”的正常行为会打断检查。
 
-发布前验证：7 项 MCP／协议检查、6 项额度解析检查、48 项原生窗口检查；另使用空白 Codex 配置验证插件安装，并在含中文和空格的新解压路径验证运行。它们不替代其他电脑上的实际登录、真实更新或手动桌面交互验收。
+发布验证包含：7 项 MCP／协议检查、6 项额度解析检查、48 项原生窗口检查，以及 v0.1.1 新增的 20 项启动与生命周期检查；另使用空白 Codex 配置验证插件安装，并在含中文和空格的新解压路径验证运行。本机同类修复已实际验证组件关闭后从桌面入口立即重新启动；客户端本身保持打开。它们不替代其他电脑上的实际登录、完整客户端退出重开或真实自动更新验收。
 
 ## 卸载
 

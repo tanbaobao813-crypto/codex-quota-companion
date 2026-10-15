@@ -12,7 +12,7 @@ export async function handle(message,controls={start,stop,status}){
   if(!message||message.jsonrpc!=='2.0')return {jsonrpc:'2.0',id:message?.id??null,error:{code:-32600,message:'Invalid JSON-RPC request'}};
   if(message.id===undefined)return null;
   let result;
-  if(message.method==='initialize')result={protocolVersion:['2024-11-05','2025-03-26','2025-06-18'].includes(message.params?.protocolVersion)?message.params.protocolVersion:'2024-11-05',capabilities:{tools:{}},serverInfo:{name:'codex-quota-companion',version:'0.1.0'}};
+  if(message.method==='initialize')result={protocolVersion:['2024-11-05','2025-03-26','2025-06-18'].includes(message.params?.protocolVersion)?message.params.protocolVersion:'2024-11-05',capabilities:{tools:{}},serverInfo:{name:'codex-quota-companion',version:'0.1.1'}};
   else if(message.method==='ping')result={};
   else if(message.method==='tools/list')result={tools:toolDefinitions};
   else if(message.method==='tools/call'){

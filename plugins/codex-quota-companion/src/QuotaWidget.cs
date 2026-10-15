@@ -192,7 +192,8 @@ namespace CodexQuotaWidget
             bool acquired;
             using (var mutex = new Mutex(false, "Local\\CodexQuotaWidget_" + Environment.UserName))
             {
-                try { acquired = mutex.WaitOne(0); } catch (AbandonedMutexException) { acquired = true; }
+                StartupDiagnostics.Mark("starting");
+                acquired = StartupGate.Acquire(mutex, 5000);
                 if (!acquired) return 0;
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
@@ -201,7 +202,7 @@ namespace CodexQuotaWidget
                     using (var context = new DockContext(false))
                     { if (context.Active) Application.Run(context); }
                 }
-                finally { mutex.ReleaseMutex(); }
+                finally { StartupDiagnostics.Mark("exited"); mutex.ReleaseMutex(); }
                 return 0;
             }
         }

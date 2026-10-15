@@ -14,7 +14,7 @@ function invoke(args){
   return new Promise((ok,bad)=>execFile(executable,args,{windowsHide:true,timeout:15000,maxBuffer:1024*1024,env:{...process.env,CODEX_QUOTA_DATA_DIR:privateDataDirectory()}},(error,output)=>error?bad(new Error('Companion command failed.')):ok(output)));
 }
 export function safeStatus(rows){
-  return {version:'0.1.0',attached:rows.some(x=>x.kind==='whale'),visible:rows.some(x=>x.kind==='whale'&&x.visible),windows:rows.filter(x=>x.kind==='whale'||x.kind==='bubble').map(x=>({kind:x.kind,visible:Boolean(x.visible),remainingPrimary:x.livePrimary??null,remainingSecondary:x.liveSecondary??null,updatedAt:x.updatedAt||null,primaryResetAt:x.primaryResetAt||null,secondaryResetAt:x.secondaryResetAt||null,syncError:Boolean(x.syncError)}))};
+  return {version:'0.1.1',attached:rows.some(x=>x.kind==='whale'),visible:rows.some(x=>x.kind==='whale'&&x.visible),windows:rows.filter(x=>x.kind==='whale'||x.kind==='bubble').map(x=>({kind:x.kind,visible:Boolean(x.visible),remainingPrimary:x.livePrimary??null,remainingSecondary:x.liveSecondary??null,updatedAt:x.updatedAt||null,primaryResetAt:x.primaryResetAt||null,secondaryResetAt:x.secondaryResetAt||null,syncError:Boolean(x.syncError)}))};
 }
 export async function status(){return safeStatus(JSON.parse(await invoke(['--dock-snapshot'])));}
 export async function start({launchClient=false}={}){

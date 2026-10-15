@@ -9,6 +9,7 @@ const request=(name,args={})=>({jsonrpc:'2.0',id:1,method:'tools/call',params:{n
 test('MCP initializes and publishes only fixed companion tools',async()=>{
   const init=await handle({jsonrpc:'2.0',id:1,method:'initialize',params:{protocolVersion:'2025-03-26'}});
   assert.equal(init.result.protocolVersion,'2025-03-26');
+  assert.equal(init.result.serverInfo.version,'0.1.1');
   const tools=await handle({jsonrpc:'2.0',id:2,method:'tools/list'});assert.equal(tools.result.tools.length,3);
   assert.equal(await handle({jsonrpc:'2.0',method:'notifications/initialized'}),null);
 });
@@ -30,6 +31,7 @@ test('tool failures never echo private paths or credentials',async()=>{
 test('status excludes native paths, handles and unrecognized rows',()=>{
   const r=safeStatus([{kind:'whale',visible:true,livePrimary:50,liveSecondary:70,path:'private-path',owner:99},{kind:'text',path:'secret'}]);
   assert.equal(r.windows.length,1);assert.equal(r.windows[0].remainingPrimary,50);assert.ok(!JSON.stringify(r).includes('private-path'));assert.ok(!JSON.stringify(r).includes('owner'));
+  assert.equal(r.version,'0.1.1');
 });
 test('plugin data uses configured writable storage',()=>{
   assert.equal(privateDataDirectory({PLUGIN_DATA:'fixture-data'}),'fixture-data');assert.equal(privateDataDirectory({CODEX_QUOTA_DATA_DIR:'override',PLUGIN_DATA:'other'}),'override');

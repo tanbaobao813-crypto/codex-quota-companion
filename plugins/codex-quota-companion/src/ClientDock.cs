@@ -221,11 +221,13 @@ namespace CodexQuotaWidget
         private int dpi;
         private string failure;
         private bool frameDirty = true;
+        private readonly bool readEnabled;
 
-        internal DockStrip(IntPtr host)
+        internal DockStrip(IntPtr host,bool readQuota=true)
         {
             Host = host;
-            liveBinary=ClientWindows.CliFor(host);
+            readEnabled=readQuota;
+            liveBinary=readEnabled?ClientWindows.CliFor(host):null;
             if(Program.WhaleEnabled)whale=new WhaleCompanion(host,delegate{Schedule(0);});
             ClientWindows.MatchDpi(host);
             Text = "Codex 全局额度条";
@@ -234,8 +236,8 @@ namespace CodexQuotaWidget
             AutoScaleMode = AutoScaleMode.None;
             ShowInTaskbar = false;
             debounce = new System.Threading.Timer(delegate { LoadQuota(); }, null, Timeout.Infinite, Timeout.Infinite);
-            ageTimer.Interval = 30000; ageTimer.Tick += delegate { if(ClientWindows.IsWindowVisible(Host)&&!ClientWindows.IsIconic(Host))Schedule(0); }; ageTimer.Start();
-            StartWatcher();
+            ageTimer.Interval = 30000; ageTimer.Tick += delegate { if(ClientWindows.IsWindowVisible(Host)&&!ClientWindows.IsIconic(Host))Schedule(0); };
+            if(readEnabled){ageTimer.Start();StartWatcher();}
         }
         protected override bool ShowWithoutActivation { get { return true; } }
         protected override CreateParams CreateParams
@@ -297,7 +299,7 @@ namespace CodexQuotaWidget
         {
             lock(gate)
             {
-                if(closing||refreshScheduled)return;
+                if(!readEnabled||closing||refreshScheduled)return;
                 if(!ClientWindows.IsWindowVisible(Host)||ClientWindows.IsIconic(Host))return;
                 if(loading){pending=true;return;}
                 int cooldown=(int)Math.Max(0,(lastAttemptUtc.AddSeconds(refresh.IntervalSeconds)-DateTime.UtcNow).TotalMilliseconds);
@@ -332,12 +334,18 @@ namespace CodexQuotaWidget
             if(whale!=null)whale.UpdateQuota(quota,failure);
             frameDirty = true; Place();
         }
-        protected override void OnFormClosing(FormClosingEventArgs e)
+        private void ReleaseResources()
         {
-            lock (gate) { closing = true; debounce.Dispose();readCancel.Cancel(); }
+            lock (gate) { if(closing)return;closing = true; debounce.Dispose();readCancel.Cancel(); }
             ageTimer.Stop(); ageTimer.Dispose();
             if (watcher != null) { watcher.EnableRaisingEvents = false; watcher.Dispose(); }
             if(whale!=null)whale.Dispose();
+        }
+        protected override void Dispose(bool disposing)
+        {if(disposing)ReleaseResources();base.Dispose(disposing);}
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            ReleaseResources();
             base.OnFormClosing(e);
         }
     }
@@ -354,6 +362,15 @@ namespace CodexQuotaWidget
         private readonly System.Windows.Forms.Timer placement = new System.Windows.Forms.Timer();
         private readonly System.Windows.Forms.Timer updateRestartDeadline = new System.Windows.Forms.Timer();
         private readonly HashSet<IntPtr> pendingPlacement = new HashSet<IntPtr>();
+        private readonly System.Windows.Forms.Timer attachRetry = new System.Windows.Forms.Timer();
+        private readonly HashSet<IntPtr> pendingAttach = new HashSet<IntPtr>();
+        private readonly HashSet<IntPtr> attaching = new HashSet<IntPtr>();
+        private readonly Dictionary<IntPtr,int> attachAttempts = new Dictionary<IntPtr,int>();
+        private readonly Func<IntPtr,DockStrip> createStrip;
+        private readonly Action<DockStrip> attachStrip;
+        internal int AttachedCount {get{return strips.Count;}}
+        internal int PendingAttachCount {get{return pendingAttach.Count;}}
+        internal bool AttachRetryActive {get{return attachRetry.Enabled;}}
         private readonly bool discoverClients;
         private readonly Func<uint, bool> updateRequested;
         private readonly Func<IntPtr, bool> isClient;
@@ -364,7 +381,10 @@ namespace CodexQuotaWidget
         internal DockContext(bool launch) : this(launch, null) { }
         internal DockContext(bool launch, IEnumerable<IntPtr> explicitHosts) : this(launch, explicitHosts, null, null, 300000) { }
         internal DockContext(bool launch, IEnumerable<IntPtr> explicitHosts, Func<uint, bool> updateCheck, Func<IntPtr, bool> clientCheck, int restartTimeoutMs)
+            : this(launch,explicitHosts,updateCheck,clientCheck,restartTimeoutMs,null,null) { }
+        internal DockContext(bool launch, IEnumerable<IntPtr> explicitHosts, Func<uint, bool> updateCheck, Func<IntPtr, bool> clientCheck, int restartTimeoutMs,Func<IntPtr,DockStrip> factory,Action<DockStrip> attachAction)
         {
+            createStrip=factory??(h=>new DockStrip(h));attachStrip=attachAction??(s=>s.Attach());
             updateRequested = updateCheck ?? DesktopUpdateSignal.WasUpdateRequested;
             isClient = clientCheck ?? ClientWindows.IsClient;
             updateRestartDeadline.Interval = Math.Max(1, restartTimeoutMs);
@@ -376,6 +396,12 @@ namespace CodexQuotaWidget
             hooks.Add(ClientWindows.SetWinEventHook(0xA, 0xB, IntPtr.Zero, callback, 0, 0, 2));
             hooks.Add(ClientWindows.SetWinEventHook(0x16, 0x17, IntPtr.Zero, callback, 0, 0, 2));
             if (hooks.Any(h => h == IntPtr.Zero)) throw new InvalidOperationException("客户端窗口监听无法启动");
+            attachRetry.Interval=200;
+            attachRetry.Tick+=delegate
+            {
+                attachRetry.Stop();var handles=pendingAttach.ToArray();pendingAttach.Clear();
+                foreach(IntPtr h in handles)Add(h);
+            };
             if (launch) ClientWindows.Launch();
             discoverClients = explicitHosts == null;
             placement.Interval = 16;
@@ -408,15 +434,31 @@ namespace CodexQuotaWidget
             }
             else if ((discoverClients || waitingForUpdateRestart) && (type == 3 || type == 0x8000 || type == 0x8002 || type == 0x800B) && isClient(host)) Add(host);
         }
-        private void Add(IntPtr host)
+        internal void Add(IntPtr host)
         {
-            if (closing || strips.ContainsKey(host)) return;
-            if (!ClientWindows.IsWindow(host)) return;
+            if (closing || strips.ContainsKey(host)||attaching.Contains(host)||pendingAttach.Contains(host)) return;
+            if (!ClientWindows.IsWindow(host)) {attachAttempts.Remove(host);return;}
+            int attempts;attachAttempts.TryGetValue(host,out attempts);
+            if(attempts>=10)return;
+            attachAttempts[host]=attempts+1;attaching.Add(host);
             uint hostProcess; ClientWindows.GetWindowThreadProcessId(host, out hostProcess);
-            var strip = new DockStrip(host);
-            try { strip.Attach(); }
-            catch { strip.Dispose(); throw; }
+            DockStrip strip=null;
+            try
+            {
+                strip=createStrip(host);attachStrip(strip);
+                if(!ClientWindows.IsWindow(host))throw new InvalidOperationException("Client window closed during attachment.");
+            }
+            catch(Exception error)
+            {
+                if(strip!=null)strip.Dispose();
+                if(!(error is InvalidOperationException)&&!(error is System.ComponentModel.Win32Exception))throw;
+                StartupDiagnostics.Mark(attempts+1<10?"window-attach-retry":"window-attach-exhausted");
+                if(attempts+1<10&&ClientWindows.IsWindow(host)){pendingAttach.Add(host);attachRetry.Start();}
+                return;
+            }
+            finally{attaching.Remove(host);}
             strips.Add(host, strip); attached = true; deadline.Stop();
+            attachAttempts.Remove(host);StartupDiagnostics.Mark("window-attached");
             processIds[host] = hostProcess;
             waitingForUpdateRestart = false; updateRestartDeadline.Stop();
             strip.FormClosed += delegate { Remove(host); };
@@ -461,6 +503,7 @@ namespace CodexQuotaWidget
                 closing = true; deadline.Stop(); deadline.Dispose();
                 placement.Stop(); placement.Dispose(); pendingPlacement.Clear();
                 updateRestartDeadline.Stop(); updateRestartDeadline.Dispose(); processIds.Clear();
+                attachRetry.Stop();attachRetry.Dispose();pendingAttach.Clear();attachAttempts.Clear();attaching.Clear();
                 foreach (IntPtr hook in hooks) if (hook != IntPtr.Zero) ClientWindows.UnhookWinEvent(hook);
                 foreach (var strip in strips.Values.ToArray()) if (!strip.IsDisposed) strip.Close();
                 foreach (var process in processes.Values) process.Dispose();

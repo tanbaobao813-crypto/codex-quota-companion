@@ -5,7 +5,7 @@ $manifestPath = Join-Path $repoRoot ($pluginRelative + '\.codex-plugin\plugin.js
 $version = (Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json).version
 if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid release version.' }
 $stage = Join-Path $repoRoot ('build\package-' + [Guid]::NewGuid().ToString('N'))
-$files = @('README.md','LICENSE','package.json','.gitignore','.agents\plugins\marketplace.json','启动客户端和额度伙伴.cmd','关闭额度伙伴.cmd','scripts\build.ps1','scripts\check-native.ps1','scripts\package.ps1','tests\mcp.test.mjs')
+$files = @('README.md','CHANGELOG.md','LICENSE','package.json','.gitignore','.agents\plugins\marketplace.json','启动客户端和额度伙伴.cmd','关闭额度伙伴.cmd','scripts\build.ps1','scripts\check-native.ps1','scripts\check-startup.ps1','scripts\package.ps1','tests\mcp.test.mjs','tests\StartupReliabilityChecks.cs')
 $files += @('.codex-plugin\plugin.json','.mcp.json','hooks\hooks.json','scripts\control.mjs','scripts\mcp.mjs','scripts\session-start.mjs','assets\character.png','assets\preview.png','assets\NOTICE.md','bin\CodexQuotaWidget.exe') | ForEach-Object { $pluginRelative + '\' + $_ }
 $files += Get-ChildItem -LiteralPath (Join-Path $repoRoot ($pluginRelative + '\src')) -File -Filter '*.cs' | ForEach-Object { $pluginRelative + '\src\' + $_.Name }
 foreach ($relative in $files) {
